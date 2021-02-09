@@ -3,6 +3,7 @@
 """
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 class Conv2d(nn.Module):
@@ -24,7 +25,11 @@ class Conv2d(nn.Module):
             kernel_size=kernel_size,
             stride=stride,
             padding=padding)
-        self.normalization = normalization(out_channels)
+
+        if normalization is not None:
+            self.normalization = normalization(out_channels)
+        else:
+            self.normalization = nn.Identity()
         self.activation = activation()
 
     def forward(self, x):
@@ -40,6 +45,7 @@ class ResBlock(nn.Module):
             in_channels,
             out_channels,
             kernel_size):
+        super(ResBlock, self).__init__()
 
         self.conv1 = Conv2d(
             in_channels=in_channels,
@@ -80,17 +86,53 @@ class Generator(nn.Module):
             stride=1,
             padding=9//2,
             activation=nn.PReLU,
+            normalization=None)
+
+        self.resblocks = []
+        for i in range(5):
+            self.resblocks.append(
+                ResBlock(
+                    in_channels=64,
+                    out_channels=64,
+                    kernel_size=3))
+        self.resblocks = nn.Sequential(*self.resblocks)
+
+        self.conv2 = Conv2d(
+            in_channels=64,
+            out_channels=64,
+            kernel_size=3,
+            stride=1,
+            padding=1,
+            activation=nn.Identity,
             normalization=nn.BatchNorm2d)
 
+        self.conv3 = Conv2d(
+            in_channels=64,
+            out_channels=256,
+            kernel_size=3,
+            stride=1,
+            padding=1,
+            activation=nn.Identity,
+            normalization=None)
+        self.pixel_shuffle = nn.PixelShuffle(2)
+
+        self.prelu = nn.PReLU()
+
+        self.conv4 = Conv2d(
+            in_channels=64,
+            out_channels=3,
+            kernel_size=9,
+            stride=1,
+            padding=9//2,
+            activation=nn.Tanh,
+            normalization=None)
+
     def forward(self, x):
-        x = self.conv1(x)
+        skip = self.conv1(x)
+        x = self.resblocks(skip)
+        x = self.conv2(x) + skip
+        x = self.conv3(x)
+        x = self.pixel_shuffle(x)
+        x = self.prelu(x)
+        x = self.conv4(x)
         return x
-
-
-generator = Generator()
-
-x = torch.rand((1, 3, 256, 256), dtype=torch.float32)
-
-print(x.shape)
-x = generator(x)
-print(x.shape)
