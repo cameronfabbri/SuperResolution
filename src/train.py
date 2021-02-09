@@ -47,7 +47,7 @@ class Train:
 
     def train(self):
 
-        for epoch in range(50):
+        for epoch in range(200):
 
             for batch_data in self.data_loader:
                 batch_x, batch_y = batch_data
@@ -71,9 +71,9 @@ class Train:
 
             batch_x = self.resize_func(batch_x)
 
-            canvas = torch.cat([batch_x[0], batch_y[0], batch_g[0]], axis=2)
+            canvas = torch.cat([batch_x[:1], batch_y[:1], batch_g[:1]], axis=3)
 
-            save_image(canvas[0], str(self.step).zfill(3)+'.png')
+            save_image(canvas[0], 'test/'+str(self.step).zfill(3)+'.png')
 
 
 if __name__ == '__main__':
