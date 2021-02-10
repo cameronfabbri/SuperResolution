@@ -9,6 +9,7 @@ dependencies:
    - pytorch==1.7.0
    - tqdm
    - opencv
+   - av
    - pip
    - pip:
       - tensorboard

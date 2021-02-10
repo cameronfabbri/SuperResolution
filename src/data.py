@@ -12,7 +12,6 @@ from skimage import io
 
 opj = os.path.join
 
-
 class AnimeHDDataset(Dataset):
 
     def __init__(self, root_dir, train):
@@ -43,6 +42,8 @@ class AnimeHDDataset(Dataset):
         return x, y
 
     def __getitem__(self, idx):
+
+        print('pid: ', os.getpid(), ' - getting index[', idx, ']')
 
         if torch.is_tensor(idx):
             idx = idx.tolist()

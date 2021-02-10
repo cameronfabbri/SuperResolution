@@ -10,6 +10,7 @@ from torchvision.utils import save_image
 from torch.utils.data import DataLoader
 
 import data as data
+from videodata import VideoDataset
 import networks as networks
 
 
@@ -17,9 +18,15 @@ class Train:
 
     def __init__(self):
 
-        dataset = data.AnimeHDDataset(root_dir='data/train', train=True)
+        #dataset = data.AnimeHDDataset(root_dir='data/train', train=True)
+        #self.data_loader = DataLoader(
+        #        dataset, batch_size=7, shuffle=True, num_workers=4, persistent_workers=True
+        #    )
+
+        dataset = VideoDataset(root_dir='data/train', file_name='vid1.mkv', train=True)
         self.data_loader = DataLoader(
-            dataset, batch_size=7, shuffle=True, num_workers=4)
+                dataset, batch_size=7, shuffle=True, num_workers=2, persistent_workers=True, pin_memory=True
+            )
 
         self.device = torch.device('cuda:0')
 
@@ -64,6 +71,9 @@ class Train:
                 self.step += 1
 
                 print('| epoch:', epoch, '| step:', self.step, '| loss:', loss, '| time:', round(time.time()-s, 2))
+                # for debugging purposes, cap our epochs to whatever number of steps
+                if not self.step % 500:
+                    break
 
             batch_x = (batch_x + 1.) / 2.
             batch_y = (batch_y + 1.) / 2.
