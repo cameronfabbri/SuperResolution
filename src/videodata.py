@@ -153,7 +153,7 @@ class VideoDataset(Dataset):
             print("queue object:", getframes_queue)
             exit()
 
-        print("Time taken to decode frame:", round(time.time() - s, 3))
+        print("Time taken to decode frame", idx, ":", round(time.time() - s, 3))
 
         return self.transform(extracted_frame)
 
