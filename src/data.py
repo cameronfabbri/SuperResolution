@@ -34,8 +34,8 @@ class AnimeHDDataset(Dataset):
         full_image = to_tensor(full_image)
 
         y = crop_func(full_image)
-        x = resize_func1(y)
-        x = resize_func2(x)
+        #x = resize_func1(y)
+        x = resize_func2(y)
 
         #x = (x / 127.5) - 1.
         #y = (y / 127.5) - 1.

@@ -9,8 +9,8 @@ import torchvision.transforms as transforms
 from torchvision.utils import save_image
 from torch.utils.data import DataLoader
 
-import src.data as data
-import src.networks as networks
+import data as data
+import networks as networks
 
 
 class Train:
@@ -19,7 +19,7 @@ class Train:
 
         dataset = data.AnimeHDDataset(root_dir='data/train', train=True)
         self.data_loader = DataLoader(
-            dataset, batch_size=16, shuffle=True, num_workers=4)
+            dataset, batch_size=7, shuffle=True, num_workers=4)
 
         self.device = torch.device('cuda:0')
 
@@ -47,7 +47,7 @@ class Train:
 
     def train(self):
 
-        for epoch in range(200):
+        for epoch in range(1000):
 
             for batch_data in self.data_loader:
                 batch_x, batch_y = batch_data
@@ -73,7 +73,7 @@ class Train:
 
             canvas = torch.cat([batch_x[:1], batch_y[:1], batch_g[:1]], axis=3)
 
-            save_image(canvas[0], 'test/'+str(self.step).zfill(3)+'.png')
+            save_image(canvas[0], 'test/'+str(self.step).zfill(3) + '-' + str(loss).zfill(3) + '.png')
 
 
 if __name__ == '__main__':
