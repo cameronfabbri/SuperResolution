@@ -25,7 +25,14 @@ class Train:
 
         dataset = VideoDataset(root_dir='data/train', file_name='vid1.mkv', train=True)
         self.data_loader = DataLoader(
-                dataset, batch_size=7, shuffle=True, num_workers=2, persistent_workers=True, pin_memory=False
+                dataset,
+                batch_size=7,
+                shuffle=True,
+                num_workers=0, 
+                #prefetch_factor=4,
+                #persistent_workers=True,
+                pin_memory=True
+                #worker_init_fn=dataset.test()
             )
 
         self.device = torch.device('cuda:0')
@@ -72,7 +79,7 @@ class Train:
 
                 print('| epoch:', epoch, '| step:', self.step, '| loss:', loss, '| time:', round(time.time()-s, 2))
                 # for debugging purposes, cap our epochs to whatever number of steps
-                if not self.step % 300:
+                if not self.step % 100:
                     break
 
             batch_x = (batch_x + 1.) / 2.
