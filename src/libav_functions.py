@@ -65,7 +65,7 @@ def get_video_frames(video_path, start_frame, number_of_frames, target_buffer):
     # TODO: find a way to shut this up. quiet=True breaks it for some reason
     ffmpeg_frame_grab_process = (
                     # we can use loglevel error here to quiet ffmpeg's stderr out
-                    ffmpeg.input('data/train/vid1.mkv', ss="00:01:00", loglevel="error")
+                    ffmpeg.input(video_path, ss=seek_time_seconds, loglevel="error")
                     .output('pipe:', format='rawvideo', pix_fmt='rgb24', vframes=number_of_frames)
                     .run_async(pipe_stdout=True)
                 )
@@ -126,7 +126,7 @@ def get_video_frame(video_path, start_frame):
     seek_time_seconds = round(desired_frame / video_stream_framerate, 4)
 
     ffmpeg_frame_grab_command = (
-                    ffmpeg.input('data/train/vid1.mkv', ss="00:01:00")
+                    ffmpeg.input(video_path, ss=seek_time_seconds)
                     .output('pipe:', format='rawvideo', pix_fmt='rgb24', vframes=1)
                 )
 
