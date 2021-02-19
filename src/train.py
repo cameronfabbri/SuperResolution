@@ -103,7 +103,7 @@ class Train:
                 save_image(canvas[0], 'test/'+str(self.step).zfill(3) + '-' + str(loss).zfill(3) + '.png')
             
             # make sure our superlist is indeed empty
-            assert self.dataset.data_decoder.get_num_chunks() != 0, "Still have some chunks left unloaded"
+            assert self.dataset.data_decoder.get_num_chunks() == 0, "Still have some chunks left unloaded"
             # Rebuild our superlist and send er again
             self.dataset.data_decoder.build_chunk_superlist()
 
