@@ -21,28 +21,37 @@ from threading import Thread
 
 from video_thread_test import ThreadedDecoder
 
+import libav_functions
+import numpy
+
 class VideoDataset(Dataset):
 
-    def __init__(self, root_dir, file_name, train):
+    def __init__(self, root_dir, train, cache_size):
         self.root_dir = root_dir
         self.train = train
-        self.file_name_full = os.path.join(root_dir, file_name)
-        
+
         #just one for now
-        self.data_decoder = ThreadedDecoder(self.file_name_full, 20)
-        self.data_decoder.start()
+        self.data_decoder = ThreadedDecoder(root_dir, cache_size)
+        #self.data_decoder.start()
 
     def __len__(self):
         return self.data_decoder.get_length()
 
     def __getitem__(self, idx):
 
-        # we get a 0 referenced index, but frames start at 1
-        idx = idx+1
+        #print("requested index", idx)
+        if self.data_decoder.active_buf is self.data_decoder.buf_1:
+            print("1", end="", flush=True)
+        elif self.data_decoder.active_buf is self.data_decoder.buf_2:
+            print("2", end="", flush=True)
+        return self.transform(self.data_decoder.active_buf[idx].copy())
 
-        frame = self.data_decoder.get_frame(idx)
+    def swap(self):
+        self.data_decoder.swap()
 
-        return self.transform(frame)
+    # returns the number of epochs we can achive before we get full data coverage
+    def get_epochs_per_dataset(self):
+        return self.data_decoder.get_num_chunks()
 
     def transform(self, full_image):
 

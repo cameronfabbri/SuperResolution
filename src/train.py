@@ -23,16 +23,15 @@ class Train:
         #        dataset, batch_size=7, shuffle=True, num_workers=4, persistent_workers=True
         #    )
 
-        dataset = VideoDataset(root_dir='data/train', file_name='vid1.mkv', train=True)
+        self.dataset = VideoDataset(root_dir='data/train', train=True, cache_size=20)
         self.data_loader = DataLoader(
-                dataset,
+                self.dataset,
                 batch_size=7,
                 shuffle=True,
                 num_workers=0, 
                 #prefetch_factor=4,
                 #persistent_workers=True,
                 pin_memory=True
-                #worker_init_fn=dataset.test()
             )
 
         self.device = torch.device('cuda:0')
@@ -61,36 +60,52 @@ class Train:
 
     def train(self):
 
-        for epoch in range(1000):
+        num_epochs = self.dataset.get_epochs_per_dataset()
+        print("{} epochs to loop over entire dataset once".format(num_epochs))
 
-            for batch_data in self.data_loader:
-                batch_x, batch_y = batch_data
+        for loop in range(100): # how many times we're going to loop over our entire dataset
 
-                batch_x = batch_x.to(self.device)
-                batch_y = batch_y.to(self.device)
+            for epoch in range(num_epochs):
 
-                batch_x = (batch_x * 2.) - 1.
-                batch_y = (batch_y * 2.) - 1.
+                for batch_data in self.data_loader:
+                    batch_x, batch_y = batch_data
 
-                s = time.time()
-                loss, batch_g = self.step_g(batch_x, batch_y)
-                loss = round(loss.cpu().item(), 3)
-                self.step += 1
+                    batch_x = batch_x.to(self.device)
+                    batch_y = batch_y.to(self.device)
 
-                print('| epoch:', epoch, '| step:', self.step, '| loss:', loss, '| time:', round(time.time()-s, 2))
-                # for debugging purposes, cap our epochs to whatever number of steps
-                if not self.step % 100:
-                    break
+                    # shift our data's range from [0, 1] to [-1, 1]
+                    batch_x = (batch_x * 2.) - 1.
+                    batch_y = (batch_y * 2.) - 1.
 
-            batch_x = (batch_x + 1.) / 2.
-            batch_y = (batch_y + 1.) / 2.
-            batch_g = (batch_g + 1.) / 2.
+                    s = time.time()
+                    loss, batch_g = self.step_g(batch_x, batch_y)
+                    loss = round(loss.cpu().item(), 3)
+                    self.step += 1
 
-            batch_x = self.resize_func(batch_x)
+                    #print('| epoch:', epoch, '/', num_epochs, '| step:', self.step, '| loss:', loss, '| time:', round(time.time()-s, 2))
+                    print("| itr:{} | epoch:{}/{} | step:{} | loss:{} | time:{} |".
+                          format(loop, epoch, num_epochs, self.step, loss, round(time.time()-s, 2)))
+                    # for debugging purposes, cap our epochs to whatever number of steps
+                    #if not self.step % 50:
+                    #    break
 
-            canvas = torch.cat([batch_x[:1], batch_y[:1], batch_g[:1]], axis=3)
+                # Swap memory cache and train on the new stuff
+                self.dataset.swap()
 
-            save_image(canvas[0], 'test/'+str(self.step).zfill(3) + '-' + str(loss).zfill(3) + '.png')
+                batch_x = (batch_x + 1.) / 2.
+                batch_y = (batch_y + 1.) / 2.
+                batch_g = (batch_g + 1.) / 2.
+
+                batch_x = self.resize_func(batch_x)
+
+                canvas = torch.cat([batch_x[:1], batch_y[:1], batch_g[:1]], axis=3)
+
+                save_image(canvas[0], 'test/'+str(self.step).zfill(3) + '-' + str(loss).zfill(3) + '.png')
+            
+            # make sure our superlist is indeed empty
+            assert self.dataset.data_decoder.get_num_chunks() != 0, "Still have some chunks left unloaded"
+            # Rebuild our superlist and send er again
+            self.dataset.data_decoder.build_chunk_superlist()
 
 
 if __name__ == '__main__':
