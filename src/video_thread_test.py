@@ -44,7 +44,8 @@ class ThreadedDecoder:
         print("buf size:", self.max_buf_size)
 
         # build our chunk superlist we'll use to load data
-        self.chunk_superlist = self.build_chunk_superlist()
+        self.chunk_superlist = {}
+        self.build_chunk_superlist()
 
         # fill our initial buffer with data
         self.fill_buffer(self.active_buf, block=True)
@@ -84,7 +85,7 @@ class ThreadedDecoder:
         random.shuffle(superlist)    
         #print(superlist)
         #print("we have {} unique chunks".format(len(superlist)))
-        return superlist
+        self.chunk_superlist = superlist
 
     def get_num_chunks(self):
         return len(self.chunk_superlist)
