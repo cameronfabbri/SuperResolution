@@ -17,14 +17,29 @@ class Train:
 
     def __init__(self, args):
 
-        self.batch_size = args.batch_size
-        self.lambda_l1 = args.lambda_l1
         self.num_ds = args.num_ds
+        self.lambda_l1 = args.lambda_l1
+        self.batch_size = args.batch_size
+        self.num_blocks = args.num_blocks
+        self.block_type = args.block_type
 
         if torch.cuda.is_available():
             self.device = torch.device('cuda:0')
         else:
             self.device = torch.device('cpu')
+
+        if args.block_type == 'sisr':
+            resblocks = networks.SISR_Resblocks(args.num_blocks)
+
+        self.net_g = networks.Generator(resblocks).to(self.device)
+        self.l1_loss = torch.nn.L1Loss()
+
+        self.optimizer = torch.optim.Adam(
+            self.net_g.parameters(), lr=args.lr_g)
+
+        self.step = 0
+        self.resize_func = transforms.Resize(args.patch_size)
+        self.resize2_func = transforms.Resize((1080, 1440))
 
         train_dir = os.path.join(args.data_dir, 'train')
         test_dir = os.path.join(args.data_dir, 'test')
@@ -59,16 +74,6 @@ class Train:
         for batch_y in self.test_data_loader:
             self.static_test_batch.append(batch_y.to(self.device))
             break
-
-        self.net_g = networks.Generator().to(self.device)
-        self.l1_loss = torch.nn.L1Loss()
-
-        self.optimizer = torch.optim.Adam(
-            self.net_g.parameters(), lr=args.lr_g)
-
-        self.step = 0
-        self.resize_func = transforms.Resize(args.patch_size)
-        self.resize2_func = transforms.Resize((1080, 1440))
 
     def step_g(self, batch_x, batch_y):
 
@@ -119,6 +124,7 @@ class Train:
                 self.train_dataset.swap()
 
                 i = 0
+                print('Saving out test images')
                 for test_batch_y in self.static_test_batch:
                     _, _, yh, yw = test_batch_y.shape
                     x_size = (yh // self.num_ds, yw // self.num_ds)
@@ -137,6 +143,7 @@ class Train:
                             canvas, os.path.join('test', str(self.step).zfill(3)+'_'+str(i)+'.png'))
                         break
                     i += 1
+                    break
 
             # make sure our superlist is indeed empty
             assert self.dataset.data_decoder.get_num_chunks() == 0, "Still have some chunks left unloaded"

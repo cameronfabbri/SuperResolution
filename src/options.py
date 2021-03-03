@@ -25,6 +25,13 @@ def get_network_args(parser):
     parser.add_argument(
         '--batch_size', required=False, default=8, type=int,
         help='')
+    parser.add_argument(
+        '--block_type', required=False, default='sisr', type=str,
+        help='Type of residual block',
+        choices=['sisr', 'rrdb'])
+    parser.add_argument(
+        '--num_blocks', required=False, default=16, type=int,
+        help='Number of residual blocks to use')
     return parser
 
 
