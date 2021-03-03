@@ -1,26 +1,25 @@
-import video_thread_test
-import libav_functions
-import time
+"""
 
-data_decoder = video_thread_test.ThreadedDecoder('data/train', 10)
+"""
+import sys
+import argparse
 
-
-
-#data_decoder.swap()
-
-#data_decoder.swap()
-
-#data_decoder.swap()
-
-#data_decoder.swap()
+import src.util as util
+import src.train as train
+import src.options as options
 
 
+def main(argv):
+
+    parser = argparse.ArgumentParser()
+    args = options.parse(parser, argv)
+
+    util.print_args(parser, args)
+
+    t = train.Train(args)
+    t.train()
 
 
-#testbuffer = []
-#libav_functions.get_video_frames('data/train/vid1.mkv', 
-#                                  start_frame=500, 
-#                                  number_of_frames=500, 
-#                                  target_buffer=testbuffer)
+if __name__ == '__main__':
+    main(sys.argv)
 
-#print("buf len:", len(testbuffer))

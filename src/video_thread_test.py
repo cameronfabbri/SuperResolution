@@ -1,17 +1,21 @@
 import os
-import sys, traceback
-import queue
+import sys
 import time
-from queue import Queue
+import queue
 import threading
-from threading import Thread, Lock
-from enum import Enum
+import traceback
 
-import libav_functions
+from enum import Enum
+from queue import Queue
+from threading import Lock, Thread
+
 import numpy
+
+import src.libav_functions as libav_functions
 
 # for testing
 import random
+
 # an enum for now in case we expand commands in the future
 class Command(Enum):
     STOP = 1
@@ -81,7 +85,7 @@ class ThreadedDecoder:
             # add our remainder straggler
             superlist.append((filename, start, frames - start))
 
-        random.shuffle(superlist)    
+        random.shuffle(superlist)
         #print(superlist)
         #print("we have {} unique chunks".format(len(superlist)))
         return superlist
@@ -111,12 +115,12 @@ class ThreadedDecoder:
                                          number_of_frames=number_of_frames,
                                          target_buffer=target_buffer)
         print("buffer filled")
-                                        
+
         # unlock our buffer and give it back
         buffer_lock.release()
 
 
-    # swap the active buffer and refill the inactive 
+    # swap the active buffer and refill the inactive
     def swap(self):
         if self.active_buf is self.buf_1:
             # release the lock and swap the buffer
@@ -161,7 +165,7 @@ class ThreadedDecoder:
 
         print("loading {}, {}, {}".format(filename, start_frame, length))
 
-        worker_thread = Thread(target=self.worker_thread, args=(filename, 
+        worker_thread = Thread(target=self.worker_thread, args=(filename,
                                                                 start_frame,
                                                                 length,
                                                                 target_buffer,
