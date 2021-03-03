@@ -21,6 +21,11 @@ class Train:
         self.lambda_l1 = args.lambda_l1
         self.num_ds = args.num_ds
 
+        if torch.cuda.is_available():
+            self.device = torch.device('cuda:0')
+        else:
+            self.device = torch.device('cpu')
+
         train_dir = os.path.join(args.data_dir, 'train')
         test_dir = os.path.join(args.data_dir, 'test')
 
@@ -52,13 +57,8 @@ class Train:
 
         self.static_test_batch = []
         for batch_y in self.test_data_loader:
-            self.static_test_batch.append(batch_y)
+            self.static_test_batch.append(batch_y.to(self.device))
             break
-
-        if torch.cuda.is_available():
-            self.device = torch.device('cuda:0')
-        else:
-            self.device = torch.device('cpu')
 
         self.net_g = networks.Generator().to(self.device)
         self.l1_loss = torch.nn.L1Loss()
@@ -68,6 +68,7 @@ class Train:
 
         self.step = 0
         self.resize_func = transforms.Resize(args.patch_size)
+        self.resize2_func = transforms.Resize((1080, 1440))
 
     def step_g(self, batch_x, batch_y):
 
@@ -113,11 +114,11 @@ class Train:
                     # for debugging purposes, cap our epochs to whatever number of steps
                     #if not self.step % 50:
                     #    break
-                    break
 
                 # Swap memory cache and train on the new stuff
                 self.train_dataset.swap()
 
+                i = 0
                 for test_batch_y in self.static_test_batch:
                     _, _, yh, yw = test_batch_y.shape
                     x_size = (yh // self.num_ds, yw // self.num_ds)
@@ -126,19 +127,16 @@ class Train:
 
                     test_batch_g = self.net_g(test_batch_x)
 
-                    i = 0
                     for bx, by, bg in zip(test_batch_x, test_batch_y, test_batch_g):
                         bx = (bx + 1.) / 2.
                         by = (by + 1.) / 2.
                         bg = (bg + 1.) / 2.
-                        canvas = torch.cat([bx, by, bg], axis=3)
-                        save_image(canvas, os.path.join('test', str(self.step).zfill(3)+'_'+str(i)+'.png'))
-                        i += 1
-                    exit()
-                #batch_x = self.resize_func(batch_x)
-                #canvas = torch.cat([batch_x[:1], batch_y[:1], batch_g[:1]], axis=3)
-                #save_image(canvas[0], 'test/'+str(self.step).zfill(3) + '-' + str(loss).zfill(3) + '.png')
-                #save_image(canvas[0], 'test/'+str(self.step).zfill(3) + '.png')
+                        bx = self.resize2_func(bx)
+                        canvas = torch.cat([bx, by, bg], axis=1)
+                        save_image(
+                            canvas, os.path.join('test', str(self.step).zfill(3)+'_'+str(i)+'.png'))
+                        break
+                    i += 1
 
             # make sure our superlist is indeed empty
             assert self.dataset.data_decoder.get_num_chunks() == 0, "Still have some chunks left unloaded"
