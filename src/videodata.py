@@ -4,30 +4,32 @@
 import os
 import time
 
-import torch
-import torchvision.transforms as transforms
+from math import floor
+from threading import Thread
 
-from torch.utils.data import Dataset
+import numpy
 
 from skimage import io
 
 import av
+import torch
+import src.libav_functions
+import torchvision.transforms as transforms
+
 from av import VideoFormat
-from math import floor
 from torchvision.utils import save_image
+from src.video_thread_test import ThreadedDecoder
+from torch.utils.data import Dataset
 
-from threading import Thread
-
-from video_thread_test import ThreadedDecoder
-
-import libav_functions
-import numpy
 
 class VideoDataset(Dataset):
 
-    def __init__(self, root_dir, train, cache_size):
+    def __init__(self, root_dir, train, cache_size, patch_size, num_ds):
         self.root_dir = root_dir
         self.train = train
+
+        self.patch_size = patch_size
+        self.input_size = self.patch_size // num_ds
 
         #just one for now
         self.data_decoder = ThreadedDecoder(root_dir, cache_size)
@@ -39,43 +41,40 @@ class VideoDataset(Dataset):
     def __getitem__(self, idx):
 
         #print("requested index", idx)
-        if self.data_decoder.active_buf is self.data_decoder.buf_1:
-            print("1", end="", flush=True)
-        elif self.data_decoder.active_buf is self.data_decoder.buf_2:
-            print("2", end="", flush=True)
+        #if self.data_decoder.active_buf is self.data_decoder.buf_1:
+        #    print("1", end="", flush=True)
+        #elif self.data_decoder.active_buf is self.data_decoder.buf_2:
+        #    print("2", end="", flush=True)
         return self.transform(self.data_decoder.active_buf[idx].copy())
 
     def swap(self):
         self.data_decoder.swap()
 
-    # returns the number of epochs we can achive before we get full data coverage
+    # returns the number of epochs we can achive before we get full data
+    # coverage
     def get_epochs_per_dataset(self):
         return self.data_decoder.get_num_chunks()
 
     def transform(self, full_image):
 
-        patchsize = 256
+        crop_func = transforms.RandomCrop(self.patch_size)
+        resize_func = transforms.Resize(self.input_size)
 
-        crop_func = transforms.RandomCrop(int(patchsize))
-        resize_func_med = transforms.Resize(int(patchsize/2))
-        resize_func_small = transforms.Resize(int(patchsize/3))
         to_tensor = transforms.ToTensor()
 
         full_image = to_tensor(full_image)
 
-        #y = crop_func(full_image)
-        y = crop_func(full_image)
-        # Random color jitter
-        #y = transforms.ColorJitter(hue=0.3)(y)
+        if self.train:
+            #y = crop_func(full_image)
+            y = crop_func(full_image)
+            # Random color jitter
+            #y = transforms.ColorJitter(hue=0.3)(y)
 
-        #x = resize_func_small(y)
-        x = resize_func_med(y)
+            # Give our image a random blur between a range
+            #x = transforms.GaussianBlur(kernel_size=5, sigma=(0.1, 1.0))(x)
+            x = transforms.GaussianBlur(kernel_size=5, sigma=(0.1, 1.0))(x)
+        
+            x = resize_func(y)
+            return x, y
 
-        # Give our image a random blur between a range
-        #x = transforms.GaussianBlur(kernel_size=5, sigma=(0.1, 1.0))(x)
-        x = transforms.GaussianBlur(kernel_size=5, sigma=(0.1, 1.0))(x)
-
-        #x = (x / 127.5) - 1.
-        #y = (y / 127.5) - 1.
-
-        return x, y
+        return full_image

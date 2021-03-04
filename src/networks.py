@@ -162,9 +162,26 @@ class ResBlockDense(nn.Module):
 
 
 
+class SISR_Resblocks(nn.Module):
+    def __init__(self, num_blocks):
+        super(SISR_Resblocks, self).__init__()
+
+        self.resblocks = []
+        for i in range(num_blocks):
+            self.resblocks.append(
+                ResBlock(
+                    in_channels=64,
+                    out_channels=64,
+                    kernel_size=3))
+        self.resblocks = nn.Sequential(*self.resblocks)
+
+    def forward(self, x):
+        return self.resblocks(x)
+
+
 class Generator(nn.Module):
 
-    def __init__(self):
+    def __init__(self, resblocks):
         super(Generator, self).__init__()
 
         self.conv1 = Conv2d(
@@ -199,6 +216,8 @@ class Generator(nn.Module):
         #    padding=1,
         #    activation=nn.Identity,
         #    normalization=nn.BatchNorm2d)
+
+        self.resblocks = resblocks
 
         self.conv3 = Conv2d(
             in_channels=64,
