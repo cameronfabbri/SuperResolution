@@ -13,6 +13,9 @@ import data as data
 from videodata import VideoDataset
 import networks as networks
 
+import libav_functions
+from os import path
+
 
 class Train:
 
@@ -23,10 +26,10 @@ class Train:
         #        dataset, batch_size=7, shuffle=True, num_workers=4, persistent_workers=True
         #    )
 
-        self.dataset = VideoDataset(root_dir='data/train', train=True, cache_size=20)
+        self.dataset = VideoDataset(root_dir='data/train', train=True, cache_size=5)
         self.data_loader = DataLoader(
                 self.dataset,
-                batch_size=7,
+                batch_size=5,
                 shuffle=True,
                 num_workers=0, 
                 #prefetch_factor=4,
@@ -39,11 +42,33 @@ class Train:
         self.net_g = networks.Generator().to(self.device)
         self.l1_loss = torch.nn.L1Loss()
 
-        self.optimizer = torch.optim.Adam(self.net_g.parameters(), lr=1e-3)
+        #self.optimizer = torch.optim.Adam(self.net_g.parameters(), lr=1e-3)
+        # lower the learning rate for ESRGAN
+        self.optimizer = torch.optim.Adam(self.net_g.parameters(), lr=1e-4)
 
         self.step = 0
 
-        self.resize_func = transforms.Resize(512)
+        self.resize_func = transforms.Resize(256)
+
+    def load(self, filename):
+        checkpoint = torch.load(filename)
+        self.net_g.load_state_dict(checkpoint['model_state'])
+        self.optimizer.load_state_dict(checkpoint['optim_state'])
+        self.step = checkpoint['step_num']
+        print("Loaded saved model at step {}, and set model/optim states".format(checkpoint['step_num']))
+
+    def save(self, filename):
+        print("trying to save model...")
+
+        print("step num is", self.step)
+        model_state_dict = self.net_g.state_dict()
+        optim_state_dict = self.optimizer.state_dict()
+        torch.save({
+            'step_num': self.step,
+            'model_state': model_state_dict,
+            'optim_state': optim_state_dict
+        }, filename)
+
 
     def step_g(self, batch_x, batch_y):
 
@@ -101,6 +126,8 @@ class Train:
                 canvas = torch.cat([batch_x[:1], batch_y[:1], batch_g[:1]], axis=3)
 
                 save_image(canvas[0], 'test/'+str(self.step).zfill(3) + '-' + str(loss).zfill(3) + '.png')
+                self.save('data/models/model.pth')
+
             
             # make sure our superlist is indeed empty
             assert self.dataset.data_decoder.get_num_chunks() == 0, "Still have some chunks left unloaded"
@@ -108,6 +135,11 @@ class Train:
             self.dataset.data_decoder.build_chunk_superlist()
 
 
+
 if __name__ == '__main__':
+
     t = Train()
+    if path.exists("data/models/model.pth"):
+        print("found existing model, load it up")
+        t.load('data/models/model.pth')
     t.train()

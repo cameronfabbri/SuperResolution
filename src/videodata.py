@@ -15,7 +15,6 @@ import av
 from av import VideoFormat
 from math import floor
 from torchvision.utils import save_image
-import torchvision.transforms as transforms
 
 from threading import Thread
 
@@ -55,16 +54,26 @@ class VideoDataset(Dataset):
 
     def transform(self, full_image):
 
-        crop_func = transforms.RandomCrop(512)
-        resize_func1 = transforms.Resize(128)
-        resize_func2 = transforms.Resize(256)
+        patchsize = 256
+
+        crop_func = transforms.RandomCrop(int(patchsize))
+        resize_func_med = transforms.Resize(int(patchsize/2))
+        resize_func_small = transforms.Resize(int(patchsize/3))
         to_tensor = transforms.ToTensor()
 
         full_image = to_tensor(full_image)
 
+        #y = crop_func(full_image)
         y = crop_func(full_image)
-        #x = resize_func1(y)
-        x = resize_func2(y)
+        # Random color jitter
+        #y = transforms.ColorJitter(hue=0.3)(y)
+
+        #x = resize_func_small(y)
+        x = resize_func_med(y)
+
+        # Give our image a random blur between a range
+        #x = transforms.GaussianBlur(kernel_size=5, sigma=(0.1, 1.0))(x)
+        x = transforms.GaussianBlur(kernel_size=5, sigma=(0.1, 1.0))(x)
 
         #x = (x / 127.5) - 1.
         #y = (y / 127.5) - 1.
