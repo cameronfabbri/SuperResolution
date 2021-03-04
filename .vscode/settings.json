@@ -2,6 +2,7 @@
     "python.pythonPath": "C:\\Users\\Dominic\\anaconda3\\envs\\superres\\python.exe",
     "python.linting.pylintArgs": [
         "--errors-only",
-        "--generated-members=numpy.* ,torch.* ,cv2.* , cv.*"
-    ]
+        "--generated-members=numpy.* ,torch.* ,cv2.* , cv.*",
+        "--disable=import-error"
+    ],
 }

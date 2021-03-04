@@ -7,8 +7,9 @@ def get_data_args(parser):
         '--data_dir', required=False, default='data', type=str,
         help='')
     parser.add_argument(
-        '--cache_size', required=False, default=20, type=int,
+        '--cache_size', required=False, default=5, type=int,
         help='')
+    # TODO: We probably want to remove this option, the dataloader won't work with anything other than 0
     parser.add_argument(
         '--num_workers', required=False, default=0, type=int,
         help='')
@@ -44,10 +45,22 @@ def get_loss_args(parser):
         help='')
     return parser
 
+def get_training_args(parser):
+    parser.add_argument(
+        '-r', '--resume_training', required=False, action='store_true',
+        help='Whether or not to resume training a model'
+    )
+    parser.add_argument(
+        '--model_dir', required=False, default='data/models', type=str,
+        help='Directory to save and load our model'
+    )
+    return parser
+
 
 def parse(parser, argv):
     parser = get_data_args(parser)
     parser = get_network_args(parser)
     parser = get_loss_args(parser)
+    parser = get_training_args(parser)
 
     return parser.parse_args(argv[1:])

@@ -18,7 +18,7 @@ import torchvision.transforms as transforms
 
 from av import VideoFormat
 from torchvision.utils import save_image
-from src.video_thread_test import ThreadedDecoder
+from src.video_frame_loader import ThreadedDecoder
 from torch.utils.data import Dataset
 
 
@@ -65,14 +65,12 @@ class VideoDataset(Dataset):
         full_image = to_tensor(full_image)
 
         if self.train:
-            #y = crop_func(full_image)
             y = crop_func(full_image)
             # Random color jitter
             #y = transforms.ColorJitter(hue=0.3)(y)
 
             # Give our image a random blur between a range
-            #x = transforms.GaussianBlur(kernel_size=5, sigma=(0.1, 1.0))(x)
-            x = transforms.GaussianBlur(kernel_size=5, sigma=(0.1, 1.0))(x)
+            x = transforms.GaussianBlur(kernel_size=5, sigma=(0.1, 1.0))(y)
         
             x = resize_func(y)
             return x, y

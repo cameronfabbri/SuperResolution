@@ -122,7 +122,7 @@ class ResBlockDense(nn.Module):
             padding=kernel_size//2,
             activation=nn.LeakyReLU,
             normalization=None)
-        # The last summation convolution before we leave the resblock
+        # The last concat convolution before we leave the resblock
         self.conv5 = Conv2d(
             in_channels=in_channels * 4,
             out_channels=out_channels,
@@ -131,19 +131,6 @@ class ResBlockDense(nn.Module):
             padding=kernel_size//2,
             activation=nn.Identity,
             normalization=None)
-
-    #def _residual(self,x):
-    #    skip1 = x
-    #    x = self.conv1(x) + skip1
-    #    skip2 = x
-    #    x = self.conv2(x) + skip1 + skip2
-    #    skip3 = x
-    #    x = self.conv3(x) + skip1 + skip2 + skip3
-    #    #x = self.conv4(x) + skip1 + skip2 + skip3
-    #    x = self.conv4(x)
-    #    x = torch.cat([x, skip1, skip2, skip3], 1)
-    #    x = self.conv5(x)
-    #    return x
 
     def _residual(self, x):
         skip = x
@@ -160,8 +147,6 @@ class ResBlockDense(nn.Module):
         # not current using the residual scaling factor β
         return x + self._residual(x)
 
-
-
 class SISR_Resblocks(nn.Module):
     def __init__(self, num_blocks):
         super(SISR_Resblocks, self).__init__()
@@ -174,6 +159,23 @@ class SISR_Resblocks(nn.Module):
                     out_channels=64,
                     kernel_size=3))
         self.resblocks = nn.Sequential(*self.resblocks)
+
+    def forward(self, x):
+        return self.resblocks(x)
+
+class RRDB_Resblocks(nn.Module):
+    def __init__(self, num_blocks):
+        super(RRDB_Resblocks, self).__init__()
+
+        self.resblocks = []
+        for i in range(num_blocks):
+            self.resblocks.append(
+                ResBlockDense(
+                    in_channels=64,
+                    out_channels=64,
+                    kernel_size=3)
+                )
+        self.resblocks = nn.Sequential(*self.resblocks)        
 
     def forward(self, x):
         return self.resblocks(x)
@@ -193,33 +195,11 @@ class Generator(nn.Module):
             activation=nn.PReLU,
             normalization=None)
 
-        self.resblocks = []
-        for i in range(10):
-            self.resblocks.append(
-                #ResBlock(
-                #    in_channels=64,
-                #    out_channels=64,
-                #    kernel_size=3)
-                ResBlockDense(
-                    in_channels=64,
-                    out_channels=64,
-                    kernel_size=3)
-                )
-        self.resblocks = nn.Sequential(*self.resblocks)
-
-        # ESRGAN poo-poos batch norm layers
-        #self.conv2 = Conv2d(
-        #    in_channels=64,
-        #    out_channels=64,
-        #    kernel_size=3,
-        #    stride=1,
-        #    padding=1,
-        #    activation=nn.Identity,
-        #    normalization=nn.BatchNorm2d)
+        # ESRGAN poo-poos batch norm layers so we don't have one here compared to SRGAN
 
         self.resblocks = resblocks
 
-        self.conv3 = Conv2d(
+        self.conv2 = Conv2d(
             in_channels=64,
             out_channels=256,
             kernel_size=3,
@@ -233,7 +213,7 @@ class Generator(nn.Module):
 
         self.prelu = nn.PReLU()
 
-        self.conv4 = Conv2d(
+        self.conv3 = Conv2d(
             in_channels=64,
             out_channels=3,
             kernel_size=9,
@@ -247,10 +227,8 @@ class Generator(nn.Module):
         # ignore the residual scaling paramter β for now
         # add the skip back at the end of our resblocks
         x = self.resblocks(skip) + skip
-        #x = self.conv2(x) + skip
-        #x = self.conv3(x)
-        x = self.conv3(x)
+        x = self.conv2(x)
         x = self.pixel_shuffle(x)
         x = self.prelu(x)
-        x = self.conv4(x)
+        x = self.conv3(x)
         return x
