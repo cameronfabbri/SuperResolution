@@ -54,6 +54,10 @@ def get_training_args(parser):
         '--model_dir', required=False, default='data/models', type=str,
         help='Directory to save and load our model'
     )
+    parser.add_argument(
+        '-t', '--test', required=False, action='store_true',
+        help='Whether or not to periodically test the model during training'
+    )
     return parser
 
 

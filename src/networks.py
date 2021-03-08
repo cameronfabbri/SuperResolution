@@ -7,7 +7,7 @@ import torch.nn.functional as F
 
 def init_weights(m):
     torch.nn.init.xavier_uniform_(m.weight)
-    m.bias.data.fill_(0.01)
+    m.bias.data.fill_(0.1)
 
 class Conv2d(nn.Module):
 
@@ -18,8 +18,8 @@ class Conv2d(nn.Module):
             kernel_size,
             stride,
             padding,
-            activation,
-            normalization):
+            normalization,
+            activation=None):
         super(Conv2d, self).__init__()
 
         self.conv = nn.Conv2d(
@@ -36,12 +36,18 @@ class Conv2d(nn.Module):
             self.normalization = normalization(out_channels)
         else:
             self.normalization = nn.Identity()
-        self.activation = activation()
+        
+        if activation is not None:
+            self.activation = activation()
+        else:
+            self.activation = None
 
     def forward(self, x):
         x = self.conv(x)
         x = self.normalization(x)
-        return self.activation(x)
+        if self.activation is not None:
+            x = self.activation(x)
+        return x
 
 
 class ResBlock(nn.Module):
@@ -87,36 +93,44 @@ class ResBlockDense(nn.Module):
             self,
             in_channels,
             out_channels,
+            growth_channels,
             kernel_size):
         super(ResBlockDense, self).__init__()
 
         self.conv1 = Conv2d(
             in_channels=in_channels,
-            out_channels=out_channels,
+            #out_channels=out_channels,
+            out_channels=growth_channels,
             kernel_size=kernel_size,
             stride=1,
             padding=kernel_size//2,
             activation=nn.LeakyReLU,
             normalization=None)
         self.conv2 = Conv2d(
-            in_channels=in_channels * 2,
-            out_channels=out_channels,
+            #in_channels=in_channels * 2,
+            in_channels=in_channels + (growth_channels),
+            #out_channels=out_channels,
+            out_channels=growth_channels,
             kernel_size=kernel_size,
             stride=1,
             padding=kernel_size//2,
             activation=nn.LeakyReLU,
             normalization=None)
         self.conv3 = Conv2d(
-            in_channels=in_channels * 3,
-            out_channels=out_channels,
+            #in_channels=in_channels * 3,
+            in_channels=in_channels + (growth_channels*2),
+            #out_channels=out_channels,
+            out_channels=growth_channels,
             kernel_size=kernel_size,
             stride=1,
             padding=kernel_size//2,
             activation=nn.LeakyReLU,
             normalization=None)
         self.conv4 = Conv2d(
-            in_channels=in_channels * 4,
-            out_channels=out_channels,
+            #in_channels=in_channels * 4,
+            in_channels=in_channels + (growth_channels*3),
+            #out_channels=out_channels,
+            out_channels=growth_channels,
             kernel_size=kernel_size,
             stride=1,
             padding=kernel_size//2,
@@ -124,28 +138,64 @@ class ResBlockDense(nn.Module):
             normalization=None)
         # The last concat convolution before we leave the resblock
         self.conv5 = Conv2d(
-            in_channels=in_channels * 4,
-            out_channels=out_channels,
+            #in_channels=in_channels * 5,
+            in_channels=in_channels + (growth_channels*4),
+            out_channels=in_channels,
             kernel_size=kernel_size,
             stride=1,
             padding=kernel_size//2,
-            activation=nn.Identity,
+            #activation=nn.Identity,
             normalization=None)
 
-    def _residual(self, x):
+    #def _residual(self, x):
+    #    skip = x
+    #    c1 = self.conv1(x)
+    #    c2 = self.conv2(torch.cat([skip, c1], 1))
+    #    c3 = self.conv3(torch.cat([skip, c1, c2], 1))
+    #    c4 = self.conv4(torch.cat([skip, c1, c2, c3], 1))
+    #    c5 = self.conv5(torch.cat([skip, c1, c2, c3, c4], 1))
+    #
+    #    return c5
+
+    def forward(self, x):
+        # sum our entry with the result of our residual
+        
         skip = x
         c1 = self.conv1(x)
         c2 = self.conv2(torch.cat([skip, c1], 1))
         c3 = self.conv3(torch.cat([skip, c1, c2], 1))
         c4 = self.conv4(torch.cat([skip, c1, c2, c3], 1))
-        c5 = self.conv5(torch.cat([skip, c1, c2, c4], 1))
+        c5 = self.conv5(torch.cat([skip, c1, c2, c3, c4], 1))
+        # scaling factor is currently 0.2
+        return (c5 * 0.2) + skip
+        #return x + self._residual(x)
 
-        return c5
-
+class RRDB(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, growth_channels=32):
+        super(RRDB, self).__init__()
+        self.rdb1 = ResBlockDense(
+                    in_channels=in_channels,
+                    out_channels=out_channels,
+                    growth_channels=growth_channels,
+                    kernel_size=kernel_size)
+        self.rdb2 = ResBlockDense(
+                    in_channels=in_channels,
+                    out_channels=out_channels,
+                    growth_channels=growth_channels,
+                    kernel_size=kernel_size)
+        self.rdb3 = ResBlockDense(
+                    in_channels=in_channels,
+                    out_channels=out_channels,
+                    growth_channels=growth_channels,
+                    kernel_size=kernel_size)
+        
     def forward(self, x):
-        # sum our entry with the result of our residual
-        # not current using the residual scaling factor β
-        return x + self._residual(x)
+        x = self.rdb1(x)
+        x = self.rdb2(x)
+        x = self.rdb3(x)
+        return (x * 0.2) + x # 0.2 is the scale factor of our dense blocks here
+
+
 
 class SISR_Resblocks(nn.Module):
     def __init__(self, num_blocks):
@@ -170,9 +220,10 @@ class RRDB_Resblocks(nn.Module):
         self.resblocks = []
         for i in range(num_blocks):
             self.resblocks.append(
-                ResBlockDense(
+                RRDB(
                     in_channels=64,
                     out_channels=64,
+                    growth_channels=32,
                     kernel_size=3)
                 )
         self.resblocks = nn.Sequential(*self.resblocks)        
@@ -189,46 +240,70 @@ class Generator(nn.Module):
         self.conv1 = Conv2d(
             in_channels=3,
             out_channels=64,
-            kernel_size=9,
+            kernel_size=3,
             stride=1,
-            padding=9//2,
-            activation=nn.PReLU,
+            padding=1,
+            #activation=nn.PReLU,
             normalization=None)
 
         # ESRGAN poo-poos batch norm layers so we don't have one here compared to SRGAN
 
+        # Our stack of rrdbs
         self.resblocks = resblocks
 
-        self.conv2 = Conv2d(
+        # Why does the paper's source have a layer here post-resblock with no activation?
+
+        # Upscaling layers
+        self.upconv = Conv2d(
             in_channels=64,
-            out_channels=256,
+            out_channels=64,
             kernel_size=3,
             stride=1,
             padding=1,
-            activation=nn.Identity,
+            activation=nn.LeakyReLU,
+            normalization=None)
+
+        self.hrconv = Conv2d(
+            in_channels=64,
+            out_channels=64,
+            kernel_size=3,
+            stride=1,
+            padding=1,
+            activation=nn.LeakyReLU,
+            normalization=None)
+
+        self.rgbconv = Conv2d(
+            in_channels=64,
+            out_channels=3,
+            kernel_size=3,
+            stride=1,
+            padding=1,
             normalization=None)
 
         # this is effectively our upscale factor
-        self.pixel_shuffle = nn.PixelShuffle(2)
+        #self.pixel_shuffle = nn.PixelShuffle(2)
 
-        self.prelu = nn.PReLU()
+        #self.prelu = nn.PReLU()
 
-        self.conv3 = Conv2d(
-            in_channels=64,
-            out_channels=3,
-            kernel_size=9,
-            stride=1,
-            padding=9//2,
-            activation=nn.Tanh,
-            normalization=None)
+        #self.conv3 = Conv2d(
+        #    in_channels=64,
+        #    out_channels=3,
+        #    kernel_size=9,
+        #    stride=1,
+        #    padding=9//2,
+        #    activation=nn.Tanh,
+        #    normalization=None)
 
     def forward(self, x):
         skip = self.conv1(x)
         # ignore the residual scaling paramter β for now
         # add the skip back at the end of our resblocks
         x = self.resblocks(skip) + skip
-        x = self.conv2(x)
-        x = self.pixel_shuffle(x)
-        x = self.prelu(x)
-        x = self.conv3(x)
+        #x = self.conv2(x)
+        #x = self.pixel_shuffle(x)
+        #x = self.prelu(x)
+        #x = self.conv3(x)
+        x = self.upconv(F.interpolate(x, scale_factor=2, mode="nearest"))
+        x = self.hrconv(x)
+        x = self.rgbconv(x)
         return x

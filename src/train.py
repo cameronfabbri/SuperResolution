@@ -25,6 +25,7 @@ class Train:
         self.num_blocks = args.num_blocks
         self.block_type = args.block_type
         self.model_dir = args.model_dir
+        self.test_training = args.test
 
         if torch.cuda.is_available():
             self.device = torch.device('cuda:0')
@@ -66,8 +67,9 @@ class Train:
             num_workers=args.num_workers,
             pin_memory=True)
 
-        self.static_test_batch = []
-        self.get_test_frame(args.patch_size, args.num_ds)
+        if self.test_training:
+            self.static_test_batch = []
+            self.get_test_frame(args.patch_size, args.num_ds)
 
     def load(self):
         checkpoint = torch.load(os.path.join(self.model_dir, 'model.pth'))
@@ -189,7 +191,8 @@ class Train:
                 self.train_dataset.swap()
 
                 # test our model
-                self.test()
+                if self.test_training:
+                    self.test()
 
                 # Save our model
                 self.save()

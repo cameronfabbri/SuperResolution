@@ -1,25 +1,26 @@
 import torch
 import torchvision.transforms as transforms
 from torchvision.utils import save_image, make_grid
-import networks as networks
-import libav_functions
+import src.networks as networks
+import src.libav_functions
 
 import random
 
 checkpoint = torch.load("data/models/model.pth")
-model = networks.Generator()
+resblocks = networks.RRDB_Resblocks(3)
+model = networks.Generator(resblocks)
 model.load_state_dict(checkpoint['model_state'])
 model.eval()
 
 
-#video_file = "C:/Users/Dominic/Desktop/temp_torrents/ghost_stories_dvd_rip/Disc 1/title_t01.mkv"
-#video_file = "C:/Users/Dominic/Desktop/SuperResolution/test/test.mkv"
-video_file = "C:/Users/Dominic/Desktop/temp_torrents/Ghost Stories (Gakkou no Kaidan) (2000) [kuchikirukia]/01. Ghost Stories (2000) [DVD 480p Hi10P AC3 dual-audio][kuchikirukia].mkv"
-total_frames = libav_functions.get_total_frames(video_file)
+video_file = "C:/Users/Dominic/Desktop/temp_torrents/ghost_stories_dvd_rip/Disc 1/title_t01.mkv"
+#video_file = "C:/Users/Dominic/Desktop/SuperResolution/test.mkv"
+#video_file = "C:/Users/Dominic/Desktop/temp_torrents/Ghost Stories (Gakkou no Kaidan) (2000) [kuchikirukia]/01. Ghost Stories (2000) [DVD 480p Hi10P AC3 dual-audio][kuchikirukia].mkv"
+total_frames = src.libav_functions.get_total_frames(video_file)
 print("total video frames:", total_frames)
 desired_frame = random.randint(0,total_frames)
 print("Trying upscaling on frame number", desired_frame)
-frame_numpy = libav_functions.get_video_frame(
+frame_numpy = src.libav_functions.get_video_frame(
         video_file,
         desired_frame
     )
