@@ -243,7 +243,7 @@ class Generator(nn.Module):
             kernel_size=3,
             stride=1,
             padding=1,
-            #activation=nn.PReLU,
+            activation=nn.PReLU,
             normalization=None)
 
         # ESRGAN poo-poos batch norm layers so we don't have one here compared to SRGAN
@@ -252,6 +252,13 @@ class Generator(nn.Module):
         self.resblocks = resblocks
 
         # Why does the paper's source have a layer here post-resblock with no activation?
+        self.post_res = Conv2d(
+            in_channels=64,
+            out_channels=64,
+            kernel_size=3,
+            stride=1,
+            padding=1,
+            normalization=None)
 
         # Upscaling layers
         self.upconv = Conv2d(
@@ -278,6 +285,7 @@ class Generator(nn.Module):
             kernel_size=3,
             stride=1,
             padding=1,
+            activation=nn.Tanh,
             normalization=None)
 
         # this is effectively our upscale factor
@@ -299,6 +307,7 @@ class Generator(nn.Module):
         # ignore the residual scaling paramter β for now
         # add the skip back at the end of our resblocks
         x = self.resblocks(skip) + skip
+        x = self.post_res(x)
         #x = self.conv2(x)
         #x = self.pixel_shuffle(x)
         #x = self.prelu(x)

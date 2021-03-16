@@ -41,7 +41,7 @@ class Train:
 
         self.num_ds = args.num_ds
         self.lambda_l1 = args.lambda_l1
-        self.lambda_gan = self.lambda_l1 # for now
+        self.lambda_gan = 1. # for now, take an arg later
         self.batch_size = args.batch_size
         self.num_blocks = args.num_blocks
         self.block_type = args.block_type
