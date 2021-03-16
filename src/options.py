@@ -27,11 +27,11 @@ def get_network_args(parser):
         '--batch_size', required=False, default=8, type=int,
         help='')
     parser.add_argument(
-        '--block_type', required=False, default='sisr', type=str,
+        '--block_type', required=False, default='rrdb', type=str,
         help='Type of residual block',
         choices=['sisr', 'rrdb'])
     parser.add_argument(
-        '--num_blocks', required=False, default=16, type=int,
+        '--num_blocks', required=False, default=5, type=int,
         help='Number of residual blocks to use')
     return parser
 

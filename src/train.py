@@ -37,12 +37,17 @@ class Train:
         elif args.block_type == 'rrdb':
             resblocks = networks.RRDB_Resblocks(args.num_blocks)
 
+        # define the generator and descriminiator
         self.net_g = networks.Generator(resblocks).to(self.device)
+        self.net_d = networks.VGGStyleDiscriminator128().to(self.device)
         self.l1_loss = torch.nn.L1Loss()
 
         self.step = 0
-        self.optimizer = torch.optim.Adam(
+        self.optimizer_g = torch.optim.Adam(
             self.net_g.parameters(), lr=args.lr_g)
+
+        self.optimizer_d = torch.optim.Adam(
+            self.net_d.parameters(), lr=1e-3)
 
         # If we're resuming a training session, this is the place to do it
         if args.resume_training:
@@ -74,7 +79,7 @@ class Train:
     def load(self):
         checkpoint = torch.load(os.path.join(self.model_dir, 'model.pth'))
         self.net_g.load_state_dict(checkpoint['model_state'])
-        self.optimizer.load_state_dict(checkpoint['optim_state'])
+        self.optimizer_g.load_state_dict(checkpoint['optim_state'])
         self.step = checkpoint['step_num']
         print("Loaded saved model at step {} and set model/optim states".format(checkpoint['step_num']))
 
@@ -83,25 +88,12 @@ class Train:
 
         print("step num is", self.step)
         model_state_dict = self.net_g.state_dict()
-        optim_state_dict = self.optimizer.state_dict()
+        optim_state_dict = self.optimizer_g.state_dict()
         torch.save({
             'step_num': self.step,
             'model_state': model_state_dict,
             'optim_state': optim_state_dict
         }, os.path.join(self.model_dir, 'model.pth'))
-
-    def step_g(self, batch_x, batch_y):
-
-        self.optimizer.zero_grad()
-
-        batch_g = self.net_g(batch_x)
-        loss = self.lambda_l1 * self.l1_loss(batch_g, batch_y)
-
-        loss.backward()
-
-        self.optimizer.step()
-
-        return loss, batch_g
 
     # initialize our dataloader here because it caches it's cache_size in ram, and we don't want that hanging around
     def get_test_frame(self, patch_size, num_ds):
@@ -153,38 +145,117 @@ class Train:
                 break
             i += 1
             break
+    
+    def checkpoint(self, input, gt, output):
+        dims = gt.size()[3]
 
+        input = transforms.Resize(dims)(input)
+        # Bring this back to 0 to 1 from -1 to 1
+        input = (input + 1.) / 2.
+        gt = (gt + 1.) / 2.
+        output = (output + 1.) / 2.
+        canvas = torch.cat([input[:1], gt[:1], output[:1]], axis=3)
+        save_image(canvas, os.path.join('test', str(self.step).zfill(3)+'.png'))
+
+    def step_d(self, batch_truth, batch_lie):
+
+        self.optimizer_d.zero_grad()
+
+        # Make two tensors, one is a block of true, one a block of false, and its associated expected output
+        all_data = torch.cat((batch_truth, batch_lie), 0)
+        all_data_labels = torch.cat(
+            # make an array of 1s and 0s, and use the batch size of the samples passed
+            (torch.ones((batch_truth.size()[0], 1)).to(self.device),
+            torch.zeros((batch_lie.size()[0], 1)).to(self.device)),
+            0
+        )  
+
+        # run our real and fake data through the descriminator
+        descriminiator_output = self.net_d(all_data)
+        # calculate the loss of the real images, just using dumb l1 for now to get a psnr-oriented model
+        loss = self.lambda_l1 * self.l1_loss(descriminiator_output, all_data_labels)
+        loss.backward()
+        
+        self.optimizer_d.step()
+
+        return loss
+    
+
+    def step_g(self, batch_x, batch_y, discriminator=True):
+
+        self.optimizer_g.zero_grad()
+
+        batch_g = self.net_g(batch_x)
+
+        # calculate loss
+        if discriminator:
+            # run our generated samples through our discriminator (not racist)
+            real_tags = torch.ones((batch_y.size()[0], 1)).to(self.device)
+            discriminated_samples = self.net_d(batch_g)
+            #loss = self.lambda_l1 * self.l1_loss(discriminated_samples, real_tags)
+            loss = self.lambda_l1 * self.l1_loss(discriminated_samples, real_tags)
+        else:
+            loss = self.lambda_l1 * self.l1_loss(batch_g, batch_y)
+
+        loss.backward()
+
+        self.optimizer_g.step()
+
+        return loss, batch_g.detach() # detaches from the autograd in step_g so the tensor can be worked on
 
     def train(self):
 
         num_epochs = self.train_dataset.get_epochs_per_dataset()
         print("{} epochs to loop over entire dataset once".format(num_epochs))
 
+        print("here we go aGAN ;)")
         # How many times we're going to loop over our entire dataset
         for loop in range(100):
 
             for epoch in range(num_epochs):
 
                 for batch_data in self.train_data_loader:
-                    batch_x, batch_y = batch_data
+                    batch_x, batch_y, batch_r = batch_data
+
 
                     batch_x = batch_x.to(self.device)
                     batch_y = batch_y.to(self.device)
+                    batch_r = batch_r.to(self.device)
 
-                    # shift our data's range from [0, 1] to [-1, 1]
+                    # shift our data's range from [0, 1] to [-1, 1] (should really move this to dataloader)
                     batch_x = (batch_x * 2.) - 1.
                     batch_y = (batch_y * 2.) - 1.
 
+                    # start our batch timer
                     s = time.time()
-                    loss, batch_g = self.step_g(batch_x, batch_y)
-                    loss = round(loss.cpu().item(), 3)
+                    # Train our generator with just l1 for a while
+                    #if self.step < 1000:
+                    #    loss_g, batch_g = self.step_g(batch_x, batch_y, discriminator=False)
+                    #    #loss_d = self.step_d(batch_truth=batch_y, batch_lie=batch_g)
+                    #    loss_d = loss_g
+                    #else:
+                    #    if self.step == 1000:
+                    #        # reinitilize our optimizer so it doesnt' blast
+                    #        print("RESTARTING OPTIMIZER")
+                    #        self.optimizer_g = torch.optim.Adam(self.net_g.parameters(), lr=1e-4)
+                    #    loss_g, batch_g = self.step_g(batch_x, batch_y, discriminator=True)
+                    #    loss_d = self.step_d(batch_truth=batch_y, batch_lie=batch_g)
+
+                    loss_g, batch_g = self.step_g(batch_x, batch_y, discriminator=True)
+                    loss_d = self.step_d(batch_truth=batch_y, batch_lie=batch_g)
+
                     self.step += 1
 
-                    #print('| epoch:', epoch, '/', num_epochs, '| step:', self.step, '| loss:', loss, '| time:', round(time.time()-s, 2))
-                    print("| itr:{} | epoch:{}/{} | step:{} | loss:{} | time:{} |".
-                          format(loop, epoch, num_epochs, self.step, loss, round(time.time()-s, 2)))
-                    # for debugging purposes, cap our epochs to whatever number of steps
-                    #if not self.step % 50:
+                    # round our losses
+                    loss_d = round(loss_d.cpu().item(), 3)
+                    loss_g = round(loss_g.cpu().item(), 3)
+                    # print our update
+                    print("| itr:{} | epoch:{}/{} | step:{} | d_loss:{} | g_loss:{} | time:{} |".
+                          format(loop, epoch, num_epochs, self.step, loss_d, loss_g, round(time.time()-s, 2)))
+                    # for debugging purposes, do whatever X amount of steps
+                    if not self.step % 100:
+                        print("checkpoint!")
+                        self.checkpoint(batch_x, batch_y, batch_g)
                     #    break
 
                 # Swap memory cache and train on the new stuff

@@ -45,7 +45,15 @@ class VideoDataset(Dataset):
         #    print("1", end="", flush=True)
         #elif self.data_decoder.active_buf is self.data_decoder.buf_2:
         #    print("2", end="", flush=True)
-        return self.transform(self.data_decoder.active_buf[idx].copy())
+
+        # downsized and ground truth
+        small, ground_truth = self.transform(self.data_decoder.active_buf[idx].copy())
+
+        # Randomized tensor for the descrimintor training
+        random_input = torch.randn((3, self.input_size, self.input_size))
+
+        #return self.transform(self.data_decoder.active_buf[idx].copy())
+        return (small, ground_truth, random_input)
 
     def swap(self):
         self.data_decoder.swap()
@@ -70,7 +78,7 @@ class VideoDataset(Dataset):
             #y = transforms.ColorJitter(hue=0.3)(y)
 
             # Give our image a random blur between a range
-            x = transforms.GaussianBlur(kernel_size=5, sigma=(0.1, 1.0))(y)
+            #x = transforms.GaussianBlur(kernel_size=5, sigma=(0.1, 1.0))(y)
         
             x = resize_func(y)
             return x, y

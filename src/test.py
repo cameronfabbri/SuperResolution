@@ -7,14 +7,14 @@ import src.libav_functions
 import random
 
 checkpoint = torch.load("data/models/model.pth")
-resblocks = networks.RRDB_Resblocks(3)
+resblocks = networks.RRDB_Resblocks(5)
 model = networks.Generator(resblocks)
 model.load_state_dict(checkpoint['model_state'])
 model.eval()
 
 
-video_file = "C:/Users/Dominic/Desktop/temp_torrents/ghost_stories_dvd_rip/Disc 1/title_t01.mkv"
-#video_file = "C:/Users/Dominic/Desktop/SuperResolution/test.mkv"
+#video_file = "C:/Users/Dominic/Desktop/temp_torrents/ghost_stories_dvd_rip/Disc 1/title_t01.mkv"
+video_file = "C:/Users/Dominic/Desktop/SuperResolution/test.mkv"
 #video_file = "C:/Users/Dominic/Desktop/temp_torrents/Ghost Stories (Gakkou no Kaidan) (2000) [kuchikirukia]/01. Ghost Stories (2000) [DVD 480p Hi10P AC3 dual-audio][kuchikirukia].mkv"
 total_frames = src.libav_functions.get_total_frames(video_file)
 print("total video frames:", total_frames)
