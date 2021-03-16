@@ -78,8 +78,8 @@ class VideoDataset(Dataset):
             #y = transforms.ColorJitter(hue=0.3)(y)
 
             # Give our image a random blur between a range
-            #x = transforms.GaussianBlur(kernel_size=5, sigma=(0.1, 1.0))(y)
-        
+            x = transforms.GaussianBlur(kernel_size=5, sigma=(0.1, 1.0))(y)
+
             x = resize_func(y)
             return x, y
 

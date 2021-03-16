@@ -244,12 +244,10 @@ class Train:
             for epoch in range(num_epochs):
 
                 for batch_data in self.train_data_loader:
-                    batch_x, batch_y, batch_r = batch_data
-
+                    batch_x, batch_y, _ = batch_data
 
                     batch_x = batch_x.to(self.device)
                     batch_y = batch_y.to(self.device)
-                    batch_r = batch_r.to(self.device)
 
                     # shift our data's range from [0, 1] to [-1, 1] (should really move this to dataloader)
                     batch_x = (batch_x * 2.) - 1.
