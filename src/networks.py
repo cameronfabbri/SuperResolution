@@ -5,9 +5,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+
 def init_weights(m):
-    torch.nn.init.xavier_uniform_(m.weight)
+    torch.nn.init.xavier_uniform_(m.weight*0.02)
     m.bias.data.fill_(0.01)
+
 
 class Conv2d(nn.Module):
 
@@ -29,14 +31,15 @@ class Conv2d(nn.Module):
             stride=stride,
             padding=padding)
 
-        # initialize our weights to be very low since this is a very deep network
+        # initialize our weights to be very low since this is a very deep
+        # network
         self.conv.apply(init_weights)
 
         if normalization is not None:
             self.normalization = normalization(out_channels)
         else:
             self.normalization = nn.Identity()
-        
+
         if activation is not None:
             self.activation = activation()
         else:
@@ -159,7 +162,7 @@ class ResBlockDense(nn.Module):
 
     def forward(self, x):
         # sum our entry with the result of our residual
-        
+
         skip = x
         c1 = self.conv1(x)
         c2 = self.conv2(torch.cat([skip, c1], 1))
@@ -188,13 +191,12 @@ class RRDB(nn.Module):
                     out_channels=out_channels,
                     growth_channels=growth_channels,
                     kernel_size=kernel_size)
-        
+
     def forward(self, x):
         x = self.rdb1(x)
         x = self.rdb2(x)
         x = self.rdb3(x)
         return (x * 0.2) + x # 0.2 is the scale factor of our dense blocks here
-
 
 
 class SISR_Resblocks(nn.Module):
@@ -213,6 +215,7 @@ class SISR_Resblocks(nn.Module):
     def forward(self, x):
         return self.resblocks(x)
 
+
 class RRDB_Resblocks(nn.Module):
     def __init__(self, num_blocks):
         super(RRDB_Resblocks, self).__init__()
@@ -226,7 +229,7 @@ class RRDB_Resblocks(nn.Module):
                     growth_channels=32,
                     kernel_size=3)
                 )
-        self.resblocks = nn.Sequential(*self.resblocks)        
+        self.resblocks = nn.Sequential(*self.resblocks)
 
     def forward(self, x):
         return self.resblocks(x)
@@ -240,16 +243,25 @@ class Generator(nn.Module):
         self.conv1 = Conv2d(
             in_channels=3,
             out_channels=64,
-            kernel_size=3,
+            kernel_size=9,
             stride=1,
-            padding=1,
-            #activation=nn.PReLU,
+            padding=9//2,
+            activation=nn.PReLU,
             normalization=None)
 
         # ESRGAN poo-poos batch norm layers so we don't have one here compared to SRGAN
 
         # Our stack of rrdbs
         self.resblocks = resblocks
+
+        self.conv2 = Conv2d(
+            in_channels=64,
+            out_channels=64,
+            kernel_size=3,
+            stride=1,
+            padding=1,
+            activation=nn.Identity,
+            normalization=None)
 
         # Why does the paper's source have a layer here post-resblock with no activation?
 
@@ -263,52 +275,32 @@ class Generator(nn.Module):
             activation=nn.LeakyReLU,
             normalization=None)
 
-        self.hrconv = Conv2d(
-            in_channels=64,
-            out_channels=64,
-            kernel_size=3,
-            stride=1,
-            padding=1,
-            activation=nn.LeakyReLU,
-            normalization=None)
+        # this is effectively our upscale factor
+        self.pixel_shuffle = nn.PixelShuffle(2)
+        self.prelu = nn.PReLU()
 
         self.rgbconv = Conv2d(
-            in_channels=64,
+            in_channels=16,
             out_channels=3,
-            kernel_size=3,
+            kernel_size=9,
             stride=1,
-            padding=1,
+            padding=9//2,
+            activation=nn.Tanh,
             normalization=None)
-
-        # this is effectively our upscale factor
-        #self.pixel_shuffle = nn.PixelShuffle(2)
-
-        #self.prelu = nn.PReLU()
-
-        #self.conv3 = Conv2d(
-        #    in_channels=64,
-        #    out_channels=3,
-        #    kernel_size=9,
-        #    stride=1,
-        #    padding=9//2,
-        #    activation=nn.Tanh,
-        #    normalization=None)
 
     def forward(self, x):
         skip = self.conv1(x)
         # ignore the residual scaling paramter β for now
         # add the skip back at the end of our resblocks
-        x = self.resblocks(skip) + skip
-        #x = self.conv2(x)
-        #x = self.pixel_shuffle(x)
-        #x = self.prelu(x)
-        #x = self.conv3(x)
-        x = self.upconv(F.interpolate(x, scale_factor=2, mode="nearest"))
-        x = self.hrconv(x)
+        x = self.resblocks(skip)
+        x = (self.conv2(x) * 0.2) + skip
+        x = self.pixel_shuffle(x)
+        x = self.prelu(x)
         x = self.rgbconv(x)
         return x
 
-## "borrowed" from https://github.com/xinntao/BasicSR/blob/master/basicsr/models/archs/discriminator_arch.py
+## "borrowed" from
+#https://github.com/xinntao/BasicSR/blob/master/basicsr/models/archs/discriminator_arch.py
 class VGGStyleDiscriminator128(nn.Module):
     """VGG style discriminator with input size 128 x 128.
     It is used to train SRGAN and ESRGAN.

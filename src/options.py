@@ -41,7 +41,7 @@ def get_loss_args(parser):
         '--lambda_l1', required=False, default=100., type=float,
         help='Scalar for L1 value')
     parser.add_argument(
-        '--lr_g', required=False, default=1e-3, type=float,
+        '--lr_g', required=False, default=2e-4, type=float,
         help='')
     return parser
 
