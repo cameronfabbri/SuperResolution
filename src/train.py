@@ -22,13 +22,13 @@ class Train:
         criterion = torch.nn.BCEWithLogitsLoss()
 
         def loss_g(d_fake):
-            y_real = torch.ones(d_fake.shape)
+            y_real = torch.ones(d_fake.shape).to(self.device)
             loss = criterion(d_fake, y_real)
             return loss
 
         def loss_d(d_real, d_fake):
-            y_real = torch.ones(d_fake.shape)
-            y_fake = torch.zeros(d_fake.shape)
+            y_real = torch.ones(d_fake.shape).to(self.device)
+            y_fake = torch.zeros(d_fake.shape).to(self.device)
 
             loss_real = criterion(d_fake, y_real)
             loss_fake = criterion(d_fake, y_fake)
@@ -41,6 +41,7 @@ class Train:
 
         self.num_ds = args.num_ds
         self.lambda_l1 = args.lambda_l1
+        self.lambda_gan = self.lambda_l1 # for now
         self.batch_size = args.batch_size
         self.num_blocks = args.num_blocks
         self.block_type = args.block_type
@@ -73,7 +74,7 @@ class Train:
         if args.resume_training:
             self.load()
 
-        self.loss_g, self.loss_d = build_gan_loss()
+        self.loss_g, self.loss_d = self.build_gan_loss()
 
         self.resize_func = transforms.Resize(args.patch_size)
         self.resize2_func = transforms.Resize((1080, 1440))
@@ -185,18 +186,21 @@ class Train:
         self.optimizer_d.zero_grad()
 
         # Make two tensors, one is a block of true, one a block of false, and its associated expected output
-        all_data = torch.cat((batch_truth, batch_lie), 0)
-        all_data_labels = torch.cat(
-            # make an array of 1s and 0s, and use the batch size of the samples passed
-            (torch.ones((batch_truth.size()[0], 1)).to(self.device),
-            torch.zeros((batch_lie.size()[0], 1)).to(self.device)),
-            0
-        )
+        #all_data = torch.cat((batch_truth, batch_lie), 0)
+        #all_data_labels = torch.cat(
+        #    # make an array of 1s and 0s, and use the batch size of the samples passed
+        #    (torch.ones((batch_truth.size()[0], 1)).to(self.device),
+        #    torch.zeros((batch_lie.size()[0], 1)).to(self.device)),
+        #    0
+        #)
 
         # run our real and fake data through the descriminator
-        descriminiator_output = self.net_d(all_data)
+        #descriminiator_output = self.net_d(all_data)
+        d_real = self.net_d(batch_truth)
+        d_fake = self.net_d(batch_lie)
         # calculate the loss of the real images, just using dumb l1 for now to get a psnr-oriented model
-        loss = self.lambda_l1 * self.l1_loss(descriminiator_output, all_data_labels)
+        #loss = self.lambda_l1 * self.l1_loss(descriminiator_output, all_data_labels)
+        loss = self.lambda_gan * self.loss_d(d_real, d_fake)
         loss.backward()
 
         self.optimizer_d.step()
@@ -216,16 +220,17 @@ class Train:
         # calculate loss
         if discriminator:
             # run our generated samples through our discriminator (not racist)
-            real_tags = torch.ones((batch_y.size()[0], 1)).to(self.device)
+            #real_tags = torch.ones((batch_y.size()[0], 1)).to(self.device)
             d_fake = self.net_d(batch_g)
-            g_loss = self.lambda_gan * self.g_loss(d_fake)
+            g_loss = self.lambda_gan * self.loss_g(d_fake)
+
             total_loss += g_loss
 
         total_loss.backward()
 
         self.optimizer_g.step()
 
-        return loss, batch_g.detach() # detaches from the autograd in step_g so the tensor can be worked on
+        return total_loss, batch_g.detach() # detaches from the autograd in step_g so the tensor can be worked on
 
     def train(self):
 
