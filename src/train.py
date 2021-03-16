@@ -1,14 +1,14 @@
 """
 
 """
+import gc
 import os
+import copy
 import time
 
 import torch
 import src.networks as networks
 import torchvision.transforms as transforms
-import copy
-import gc
 
 from src.videodata import VideoDataset
 from torchvision.utils import save_image
@@ -16,6 +16,26 @@ from torch.utils.data import DataLoader
 
 
 class Train:
+
+    def build_gan_loss(self):
+
+        criterion = torch.nn.BCEWithLogitsLoss()
+
+        def loss_g(d_fake):
+            y_real = torch.ones(d_fake.shape)
+            loss = criterion(d_fake, y_real)
+            return loss
+
+        def loss_d(d_real, d_fake):
+            y_real = torch.ones(d_fake.shape)
+            y_fake = torch.zeros(d_fake.shape)
+
+            loss_real = criterion(d_fake, y_real)
+            loss_fake = criterion(d_fake, y_fake)
+
+            return loss_real + loss_fake
+
+        return loss_g, loss_d
 
     def __init__(self, args):
 
@@ -52,6 +72,8 @@ class Train:
         # If we're resuming a training session, this is the place to do it
         if args.resume_training:
             self.load()
+
+        self.loss_g, self.loss_d = build_gan_loss()
 
         self.resize_func = transforms.Resize(args.patch_size)
         self.resize2_func = transforms.Resize((1080, 1440))
@@ -95,7 +117,8 @@ class Train:
             'optim_state': optim_state_dict
         }, os.path.join(self.model_dir, 'model.pth'))
 
-    # initialize our dataloader here because it caches it's cache_size in ram, and we don't want that hanging around
+    # initialize our dataloader here because it caches it's cache_size in ram,
+    # and we don't want that hanging around
     def get_test_frame(self, patch_size, num_ds):
         self.test_dataset = VideoDataset(
             root_dir=self.test_dir,
@@ -145,7 +168,7 @@ class Train:
                 break
             i += 1
             break
-    
+
     def checkpoint(self, input, gt, output):
         dims = gt.size()[3]
 
@@ -168,18 +191,17 @@ class Train:
             (torch.ones((batch_truth.size()[0], 1)).to(self.device),
             torch.zeros((batch_lie.size()[0], 1)).to(self.device)),
             0
-        )  
+        )
 
         # run our real and fake data through the descriminator
         descriminiator_output = self.net_d(all_data)
         # calculate the loss of the real images, just using dumb l1 for now to get a psnr-oriented model
         loss = self.lambda_l1 * self.l1_loss(descriminiator_output, all_data_labels)
         loss.backward()
-        
+
         self.optimizer_d.step()
 
         return loss
-    
 
     def step_g(self, batch_x, batch_y, discriminator=True):
 
@@ -187,17 +209,19 @@ class Train:
 
         batch_g = self.net_g(batch_x)
 
+        l1_loss = self.lambda_l1 * self.l1_loss(batch_g, batch_y)
+
+        total_loss = l1_loss
+
         # calculate loss
         if discriminator:
             # run our generated samples through our discriminator (not racist)
             real_tags = torch.ones((batch_y.size()[0], 1)).to(self.device)
-            discriminated_samples = self.net_d(batch_g)
-            #loss = self.lambda_l1 * self.l1_loss(discriminated_samples, real_tags)
-            loss = self.lambda_l1 * self.l1_loss(discriminated_samples, real_tags)
-        else:
-            loss = self.lambda_l1 * self.l1_loss(batch_g, batch_y)
+            d_fake = self.net_d(batch_g)
+            g_loss = self.lambda_gan * self.g_loss(d_fake)
+            total_loss += g_loss
 
-        loss.backward()
+        total_loss.backward()
 
         self.optimizer_g.step()
 
@@ -267,9 +291,6 @@ class Train:
 
                 # Save our model
                 self.save()
-                
-
-                
 
             # make sure our superlist is indeed empty
             assert self.train_dataset.data_decoder.get_num_chunks() == 0, "Still have some chunks left unloaded"
