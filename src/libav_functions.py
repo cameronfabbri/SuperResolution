@@ -1,7 +1,7 @@
 import numpy
 
 import ffmpeg
-from math import floor
+from math import floor, ceil
 from fractions import Fraction
 
 def get_video_dims(video_path):
@@ -20,12 +20,20 @@ def get_total_frames(video_path):
     video_stream = next((stream for stream in probe['streams'] if stream['codec_type'] == 'video'), None)
     video_stream_time_base = float(Fraction(video_stream['codec_time_base']))
     video_stream_framerate = float(Fraction(video_stream['avg_frame_rate']))
+    
+    #print(video_path)
+    #print(video_stream_framerate)
 
     # duration divided by av's time base
     container_duration_seconds = float(container_info['duration'])
+    
+    #print(container_duration_seconds)
 
     # Calculate the number of frames this video file probably has
-    num_frames = floor(video_stream_framerate * container_duration_seconds)
+    #num_frames = floor(video_stream_framerate * container_duration_seconds)
+    num_frames = ceil(video_stream_framerate * container_duration_seconds)
+    #print(num_frames)
+
 
     return num_frames
 

@@ -49,11 +49,8 @@ class VideoDataset(Dataset):
         # downsized and ground truth
         small, ground_truth = self.transform(self.data_decoder.active_buf[idx].copy())
 
-        # Randomized tensor for the descrimintor training
-        random_input = torch.randn((3, self.input_size, self.input_size))
-
         #return self.transform(self.data_decoder.active_buf[idx].copy())
-        return (small, ground_truth, random_input)
+        return (small, ground_truth)
 
     def swap(self):
         self.data_decoder.swap()

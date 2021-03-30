@@ -4,6 +4,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torchvision.models import vgg19
 
 def init_weights(m):
     torch.nn.init.xavier_uniform_(m.weight)
@@ -237,6 +238,9 @@ class Generator(nn.Module):
     def __init__(self, resblocks):
         super(Generator, self).__init__()
 
+        self.pixel_shuffle = nn.PixelShuffle(2)
+        self.prelu = nn.PReLU()
+
         self.conv1 = Conv2d(
             in_channels=3,
             out_channels=64,
@@ -272,15 +276,25 @@ class Generator(nn.Module):
 
         self.hrconv = Conv2d(
             in_channels=64,
+            #in_channels=16,
             out_channels=64,
+            #out_channels=16,
             kernel_size=3,
             stride=1,
             padding=1,
             activation=nn.LeakyReLU,
             normalization=None)
 
+        #self.hrconv = RRDB(
+        #    in_channels=16,
+        #    out_channels=16,
+        #    growth_channels=8,
+        #    kernel_size=3
+        #)
+
         self.rgbconv = Conv2d(
             in_channels=64,
+            #in_channels=16,
             out_channels=3,
             kernel_size=3,
             stride=1,
@@ -312,6 +326,9 @@ class Generator(nn.Module):
         #x = self.pixel_shuffle(x)
         #x = self.prelu(x)
         #x = self.conv3(x)
+        
+        #x = self.pixel_shuffle(x)
+        #x = self.prelu(x)
         x = self.upconv(F.interpolate(x, scale_factor=2, mode="nearest"))
         x = self.hrconv(x)
         x = self.rgbconv(x)
@@ -396,3 +413,13 @@ class VGGStyleDiscriminator128(nn.Module):
         feat = self.lrelu(self.linear1(feat))
         out = self.linear2(feat)
         return out
+
+
+class VGG19FeatureNet(nn.Module):
+    def __init__(self):
+        super(VGG19FeatureNet, self).__init__()
+        self.truncated_model = nn.Sequential(*list(vgg19(pretrained = True).features))[:13]
+        self.truncated_model.eval()
+
+    def forward(self, x):
+        return self.truncated_model(x)

@@ -24,14 +24,14 @@ def get_data_args(parser):
 
 def get_network_args(parser):
     parser.add_argument(
-        '--batch_size', required=False, default=8, type=int,
+        '--batch_size', required=False, default=6, type=int,
         help='')
     parser.add_argument(
         '--block_type', required=False, default='rrdb', type=str,
         help='Type of residual block',
         choices=['sisr', 'rrdb'])
     parser.add_argument(
-        '--num_blocks', required=False, default=5, type=int,
+        '--num_blocks', required=False, default=8, type=int,
         help='Number of residual blocks to use')
     return parser
 
@@ -41,7 +41,7 @@ def get_loss_args(parser):
         '--lambda_l1', required=False, default=100., type=float,
         help='Scalar for L1 value')
     parser.add_argument(
-        '--lr_g', required=False, default=1e-3, type=float,
+        '--lr_g', required=False, default=3e-4, type=float,
         help='')
     return parser
 

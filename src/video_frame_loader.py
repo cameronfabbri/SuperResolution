@@ -78,13 +78,16 @@ class ThreadedDecoder:
             full_chunks = frames//chunk_size
             #print("full chunks:", full_chunks)
             #print("chunk size:", chunk_size)
-            start = 0
+            chunk_end = 0
             for _ in range(0,full_chunks):
-                listitem = (filename, start, chunk_size)
+                listitem = (filename, chunk_end+1, chunk_size)
                 superlist.append(listitem)
-                start = start + chunk_size + 1
+                #chunk_end = chunk_end + chunk_size + 1
+                chunk_end = chunk_end + chunk_size
+
+            #print(filename, full_chunks, chunk_size, frames, frames - chunk_end)
             # add our remainder straggler
-            superlist.append((filename, start, frames - start))
+            superlist.append((filename, chunk_end, frames - chunk_end))
 
         random.shuffle(superlist)
         #print(superlist)

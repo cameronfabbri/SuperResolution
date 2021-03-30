@@ -63,6 +63,9 @@ class Train:
         self.net_d = networks.VGGStyleDiscriminator128().to(self.device)
         self.l1_loss = torch.nn.L1Loss()
 
+        # feature extractor
+        self.net_f = networks.VGG19FeatureNet().to(self.device)
+
         self.step = 0
         self.optimizer_g = torch.optim.Adam(
             self.net_g.parameters(), lr=args.lr_g)
@@ -101,8 +104,10 @@ class Train:
 
     def load(self):
         checkpoint = torch.load(os.path.join(self.model_dir, 'model.pth'))
-        self.net_g.load_state_dict(checkpoint['model_state'])
-        self.optimizer_g.load_state_dict(checkpoint['optim_state'])
+        self.net_g.load_state_dict(checkpoint['gen_model_state'])
+        self.optimizer_g.load_state_dict(checkpoint['gen_optim_state'])
+        self.net_d.load_state_dict(checkpoint['disc_model_state'])
+        self.optimizer_d.load_state_dict(checkpoint['disc_optim_state'])
         self.step = checkpoint['step_num']
         print("Loaded saved model at step {} and set model/optim states".format(checkpoint['step_num']))
 
@@ -110,12 +115,16 @@ class Train:
         print("trying to save model...")
 
         print("step num is", self.step)
-        model_state_dict = self.net_g.state_dict()
-        optim_state_dict = self.optimizer_g.state_dict()
+        gen_model_state_dict = self.net_g.state_dict()
+        gen_optim_state_dict = self.optimizer_g.state_dict()
+        disc_model_state_dict = self.net_d.state_dict()
+        disc_optim_state_dict = self.optimizer_d.state_dict()
         torch.save({
             'step_num': self.step,
-            'model_state': model_state_dict,
-            'optim_state': optim_state_dict
+            'gen_model_state': gen_model_state_dict,
+            'gen_optim_state': gen_optim_state_dict,
+            'disc_model_state': disc_model_state_dict,
+            'disc_optim_state': disc_optim_state_dict
         }, os.path.join(self.model_dir, 'model.pth'))
 
     # initialize our dataloader here because it caches it's cache_size in ram,
@@ -201,6 +210,7 @@ class Train:
         # calculate the loss of the real images, just using dumb l1 for now to get a psnr-oriented model
         #loss = self.lambda_l1 * self.l1_loss(descriminiator_output, all_data_labels)
         loss = self.lambda_gan * self.loss_d(d_real, d_fake)
+
         loss.backward()
 
         self.optimizer_d.step()
@@ -216,6 +226,9 @@ class Train:
         l1_loss = self.lambda_l1 * self.l1_loss(batch_g, batch_y)
 
         total_loss = l1_loss
+
+        # add the loss from the feature net
+        total_loss += (self.lambda_l1 * 1.5) * self.l1_loss(self.net_f(batch_g), self.net_f(batch_y))
 
         # calculate loss
         if discriminator:
@@ -244,12 +257,11 @@ class Train:
             for epoch in range(num_epochs):
 
                 for batch_data in self.train_data_loader:
-                    batch_x, batch_y, batch_r = batch_data
+                    batch_x, batch_y = batch_data
 
 
                     batch_x = batch_x.to(self.device)
                     batch_y = batch_y.to(self.device)
-                    batch_r = batch_r.to(self.device)
 
                     # shift our data's range from [0, 1] to [-1, 1] (should really move this to dataloader)
                     batch_x = (batch_x * 2.) - 1.
